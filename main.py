@@ -50,7 +50,7 @@ first close running programs.
 (STEP1, STEP2, STEP3) = range(3)
 COMMAND1 = "sudo conary update conary --resolve"
 COMMAND2 = "sudo conary updateall"
-COMMANDR3= "sudo conary migrate group-gnome-dist"
+COMMAND3= "sudo conary migrate group-gnome-dist"
 
 class UpgradeSystem(object):
 
@@ -123,8 +123,8 @@ class UpgradeSystem(object):
             self.stepTwoButton.set_sensitive(False)
             self.stepThreeButton.set_sensitive(True)
         else:
-            self.run_conary(COMMAND2)
-            self.stepOneButton.set_sensitive(True)
+            self.run_conary(COMMAND3)
+            self.stepOneButton.set_sensitive(False)
             self.stepTwoButton.set_sensitive(False)
             self.stepThreeButton.set_sensitive(False)
 
