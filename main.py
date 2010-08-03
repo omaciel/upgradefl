@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # vim: ts=4 sw=4 expandtab ai
 # -*- encoding: utf-8 -*-
 
@@ -47,6 +48,9 @@ first close running programs.
 """
 
 (STEP1, STEP2, STEP3) = range(3)
+COMMAND1 = "sudo conary update conary --resolve"
+COMMAND2 = "sudo conary updateall"
+COMMANDR3= "sudo conary migrate group-gnome-dist"
 
 class UpgradeSystem(object):
 
@@ -108,24 +112,28 @@ class UpgradeSystem(object):
 
     def button_clicked(self, button):
         #TODO: We could get fancy and check the return code of the process and determine whether to continue.
-        #TODO: Need to add the correct commands to run.
         if button.idx == STEP1:
-            pid = subprocess.Popen(args=["gnome-terminal", "--command=conary q firefox"]).pid
+            self.run_conary(COMMAND1)
             self.stepOneButton.set_sensitive(False)
             self.stepTwoButton.set_sensitive(True)
             self.stepThreeButton.set_sensitive(False)
         elif button.idx == STEP2:
-            pid = subprocess.Popen(args=["gnome-terminal", "--command=conary q vim"]).pid
+            self.run_conary(COMMAND2)
             self.stepOneButton.set_sensitive(False)
             self.stepTwoButton.set_sensitive(False)
             self.stepThreeButton.set_sensitive(True)
         else:
-            pid = subprocess.Popen(args=["gnome-terminal", "--command=conary q less"]).pid
+            self.run_conary(COMMAND2)
             self.stepOneButton.set_sensitive(True)
             self.stepTwoButton.set_sensitive(False)
             self.stepThreeButton.set_sensitive(False)
 
         #TODO: Maybe we want to notify the user of completion and close the window?
+
+    def run_conary(self, command):
+        print "--command='%s'; echo ''; echo 'Press Enter to close window'; read" % command
+        pid = subprocess.Popen(args=[
+            "gnome-terminal", '--command="%s"; echo ""; echo "Press Enter to close window"; read' % command]).pid
 
 def main():
     gtk.main()
