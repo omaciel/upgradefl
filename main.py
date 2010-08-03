@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# vim: ts=4 sw=4 expandtab ai
 # -*- encoding: utf-8 -*-
+# vim: ts=4 sw=4 expandtab ai
 
 import pygtk
 pygtk.require('2.0')
