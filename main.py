@@ -131,9 +131,10 @@ class UpgradeSystem(object):
         #TODO: Maybe we want to notify the user of completion and close the window?
 
     def run_conary(self, command):
-        print "--command='%s'; echo ''; echo 'Press Enter to close window'; read" % command
-        pid = subprocess.Popen(args=[
-            "gnome-terminal", '--command="%s"; echo ""; echo "Press Enter to close window"; read' % command]).pid
+        pid = subprocess.Popen([
+            "gnome-terminal",
+            "--command",
+            "bash -c '%s; echo; echo Press Enter to close window; read'" % command]).pid
 
 def main():
     gtk.main()
