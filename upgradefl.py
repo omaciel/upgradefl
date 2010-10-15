@@ -6,23 +6,25 @@ import pygtk
 pygtk.require('2.0')
 import gtk
 import subprocess
+import os
+import tempfile
 
 """
 Copyright (c) 2010, Og Maciel <ogmaciel@gnome.org>
 
 All rights reserved.
 
-Redistribution and use in source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
 
-    * Redistributions of source code must retain the above copyright notice, this list of
-      conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright notice, this list
-      of conditions and the following disclaimer in the documentation and/or other materials
-      provided with the distribution.
-    * Neither the name of the Og Maciel nor the names of its contributors may be used to
-      endorse or promote products derived from this software without specific prior written
-      permission.
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the name Og Maciel nor the names of other contributors may be used
+      to endorse or promote products derived from this software without specific
+      prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 “AS IS” AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -38,19 +40,123 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 INFOTEXT = """
-<b>Updates to Foresight are now available.</b>\n
-For a variety of technical reasons, the update process
-is temporarily more complex than usual.  After this
-update process is complete,your update process will
-return to normal.\n\n
-In order to complete this update process, you should
-first close running programs.
+<b>Updates to Foresight are now available.</b>
+
+For a variety of technical reasons, the update process is 
+temporarily more complex than usual.  After this update 
+process is complete, your update process will return to normal.
+
+In order to complete this update process, you should first
+close running programs.
+
+Second, you need to update to the latest version of Conary.
 """
 
-(STEP1, STEP2, STEP3) = range(3)
-COMMAND1 = "sudo conary update conary --resolve"
-COMMAND2 = "sudo conary updateall"
-COMMAND3= "sudo conary migrate group-gnome-dist"
+UPDATEALL_TEXT = """
+Third, try updating your system. 
+
+Depending on which packages you have installed in the past,
+the update process may fail, possibly with messages about
+"file conflicts" or "dependency failures".  
+"""
+
+MIGRATE_TEXT = """
+If the update process fails, you will need to migrate your
+system to its default state -- i.e. roughly the same state
+your system would be in if you had just installed it from
+a Foresight DVD.
+
+This will remove extra packages that you have previously
+installed, and you will have to add them back after this step.
+
+The good news is that the migration process should not tamper
+with any documents, media files or other saved data in your
+home folder.  But if you are the paranoid sort, now would be
+a good time to ensure that you have good backups of your
+important data/documents/media files.
+"""
+
+(CONARY_STEP, UPDATEALL_STEP, MIGRATE_STEP) = range(3)
+
+## Using files allows for more control than using commands
+# Set up a file to use for conary return values -- 
+# gnome-terminal does not appear to make the conary exit
+# status available, so we use xterm instead.
+fd, CONARY_EXIT_STATUS = tempfile.mkstemp(prefix='conary_exit_status-')
+conary_exit_status = os.fdopen(fd, 'r')
+os.close(fd)
+print "Conary exit status lives in %s" % CONARY_EXIT_STATUS
+
+#COMMAND1 = "sudo conary update conary --resolve"
+fd, UPDATE_CONARY = tempfile.mkstemp(prefix='update_conary-')
+f = os.fdopen(fd, 'w')
+f.write(
+'''#!/bin/sh
+echo "Updating Conary..."
+#echo "conary update conary --resolve" && sleep 3
+conary update conary --resolve --verbose
+rv=$?
+echo "$rv" > %s
+echo ""
+if [ $rv -eq 0 ]; then
+  echo "** Conary updated successfully."
+else
+  echo "!! Conary not updated, please try again."
+fi
+echo ""
+echo "Press <Return> to close this window."
+read ANSWER
+exit $rv
+''' % CONARY_EXIT_STATUS)
+f.close()
+os.chmod(UPDATE_CONARY, 0755)
+
+#COMMAND2 = "sudo conary updateall"
+fd, CONARY_UPDATEALL = tempfile.mkstemp(prefix='conary_updateall-')
+f = os.fdopen(fd, 'w')
+f.write('''#!/bin/sh
+echo "Updating packages on the system..."
+#echo "conary updateall" && sleep 3 && rv=1
+conary updateall --verbose
+rv=$?
+echo "$rv" > %s
+echo ""
+if [ $rv -eq 0 ]; then
+  echo "** System packages updated successfully."
+else
+  echo "!! System packages not updated, please try again."
+fi
+echo ""
+echo "Press <Return> to close this window."
+read ANSWER
+exit $rv
+''' % CONARY_EXIT_STATUS)
+f.close()
+os.chmod(CONARY_UPDATEALL, 0755)
+
+#COMMAND3 = "sudo conary migrate group-gnome-dist"
+fd, CONARY_MIGRATE = tempfile.mkstemp(prefix='conary_updateall-')
+f = os.fdopen(fd, 'w')
+f.write(
+'''#!/bin/sh
+echo "Resetting your system configuration to installation defaults..."
+#echo "conary migrate group-gnome-dist" && sleep 3 && rv=1
+conary migrate group-gnome-dist
+rv=$?
+echo "$rv" > %s
+echo ""
+if [ $rv -eq 0 ]; then
+  echo "** System successfully reset to installation defaults."
+else
+  echo "!! System could not be reset to installation defaults, please try again."
+fi
+echo ""
+echo "Press <Return> to close this window."
+read ANSWER
+exit $rv
+''' % CONARY_EXIT_STATUS)
+f.close()
+os.chmod(CONARY_MIGRATE, 0755)
 
 class UpgradeSystem(object):
 
@@ -70,71 +176,125 @@ class UpgradeSystem(object):
 
         #self.window.set_size_request(500, 200)
 
+        self._conary_updateall_tries = 0 # how many times have we tried to do this?
+        # if we've tried 3 times, perhaps it's time to bring out the big hammer?
+        self._max_tries = 3 
+
         self.window.connect("delete_event", self.delete_event)
 
         self.create_widgets()
         self.window.show_all()
 
     def create_widgets(self):
-        topContainer = gtk.HBox(homogeneous=False, spacing=2)
-        buttonsContainer = gtk.VBox(homogeneous=False, spacing=2)
+        # Using a table yields a 'prettier' interface
+        topContainer = gtk.Table(rows=6, columns=1, homogeneous=False)
 
-        self.stepOneButton = gtk.Button("Update Conary")
-        self.stepOneButton.set_tooltip_text("Step 1")
-        self.stepOneButton.idx = STEP1
+        self.updateConaryButton = gtk.Button("Update Conary Now")
+        self.updateConaryButton.set_tooltip_text(
+            "This will attempt to update Conary, the Foresight"
+            " package manager, to the newest version available.")
+        self.updateConaryButton.idx = CONARY_STEP
 
-        self.stepTwoButton = gtk.Button("Update All")
-        self.stepTwoButton.set_tooltip_text("Step 2")
-        self.stepTwoButton.set_sensitive(False)
-        self.stepTwoButton.idx = STEP2
+        self.updateallButton = gtk.Button("Update All Installed Packages")
+        self.updateallButton.set_tooltip_text(
+            "This will attempt to update all the packages"
+            " on your system to their newest versions available.")
+        self.updateallButton.set_sensitive(False)
+        self.updateallButton.idx = UPDATEALL_STEP
 
-        self.stepThreeButton = gtk.Button("Migrate Packages")
-        self.stepThreeButton.set_tooltip_text("Step 3")
-        self.stepThreeButton.set_sensitive(False)
-        self.stepThreeButton.idx = STEP3
+        self.migrateButton = gtk.Button("Migrate To Default Installation")
+        self.migrateButton.set_tooltip_text(
+            "This will attempt to reset your system to installation defaults."
+            " Only do this if the \'Update All Installed Packages\' step"
+            " cannot be completed successfully.")
+        self.migrateButton.set_sensitive(False)
+        self.migrateButton.idx = MIGRATE_STEP
 
-        self.stepOneButton.connect("clicked", self.button_clicked)
-        self.stepTwoButton.connect("clicked", self.button_clicked)
-        self.stepThreeButton.connect("clicked", self.button_clicked)
+        self.updateConaryButton.connect("clicked", self.button_clicked)
+        self.updateallButton.connect("clicked", self.button_clicked)
+        self.migrateButton.connect("clicked", self.button_clicked)
 
         self.infoLabel = gtk.Label()
         self.infoLabel.set_markup(INFOTEXT)
         self.infoLabel.set_line_wrap(True)
 
-        # Add buttons to container
-        buttonsContainer.pack_start(self.stepOneButton, expand=True, fill=True, padding=2)
-        buttonsContainer.pack_start(self.stepTwoButton, expand=True, fill=True, padding=2)
-        buttonsContainer.pack_start(self.stepThreeButton, expand=True, fill=True, padding=2)
+        self.updateallLabel = gtk.Label()
+        self.updateallLabel.set_markup(UPDATEALL_TEXT)
+        self.updateallLabel.set_line_wrap(True)
 
-        topContainer.pack_start(buttonsContainer, expand=True, fill=True, padding=2)
-        topContainer.pack_start(self.infoLabel, expand=True, fill=True, padding=2)
+        self.migrateLabel = gtk.Label()
+        self.migrateLabel.set_markup(MIGRATE_TEXT)
+        self.migrateLabel.set_line_wrap(True)
+
+        topContainer.attach(self.infoLabel, 0, 1, 0, 1, 
+                            xpadding=10, ypadding=2)
+        topContainer.attach(self.updateConaryButton, 0, 1, 1, 2, 
+                            xoptions=gtk.SHRINK, xpadding=2, ypadding=2)
+        topContainer.attach(self.updateallLabel, 0, 1, 2, 3, 
+                            xpadding=10, ypadding=2)
+        topContainer.attach(self.updateallButton, 0, 1, 3, 4, 
+                            xoptions=gtk.SHRINK, xpadding=2, ypadding=2)
+        topContainer.attach(self.migrateLabel, 0, 1, 4, 5, 
+                            xpadding=10, ypadding=2)
+        topContainer.attach(self.migrateButton, 0, 1, 5, 6, 
+                            xoptions=gtk.SHRINK, xpadding=2, ypadding=10)
         self.window.add(topContainer)
 
     def button_clicked(self, button):
-        #TODO: We could get fancy and check the return code of the process and determine whether to continue.
-        if button.idx == STEP1:
-            self.run_conary(COMMAND1)
-            self.stepOneButton.set_sensitive(False)
-            self.stepTwoButton.set_sensitive(True)
-            self.stepThreeButton.set_sensitive(False)
-        elif button.idx == STEP2:
-            self.run_conary(COMMAND2)
-            self.stepOneButton.set_sensitive(False)
-            self.stepTwoButton.set_sensitive(False)
-            self.stepThreeButton.set_sensitive(True)
+        if button.idx == CONARY_STEP:
+            self.updateConaryButton.set_sensitive(False)
+            retval = self.run_conary(UPDATE_CONARY)
+            if(retval != 0): # ooops, try again
+                self.updateConaryButton.set_sensitive(True)
+                self.updateallButton.set_sensitive(False)
+                self.migrateButton.set_sensitive(False)
+            else:
+                self.updateConaryButton.set_sensitive(False)
+                self.updateallButton.set_sensitive(True)
+                self.migrateButton.set_sensitive(False)
+        elif button.idx == UPDATEALL_STEP:
+            self.updateallButton.set_sensitive(False)
+            retval = self.run_conary(CONARY_UPDATEALL)
+            self._conary_updateall_tries += 1
+            if(retval != 0):
+                if(self._conary_updateall_tries >= self._max_tries):
+                    # All right, no luck; let the user try the big hammer!
+                    self.updateConaryButton.set_sensitive(False)
+                    self.updateallButton.set_sensitive(False)
+                    self.migrateButton.set_sensitive(True)
+                else: # just try again
+                    self.updateConaryButton.set_sensitive(False)
+                    self.updateallButton.set_sensitive(True)
+                    self.migrateButton.set_sensitive(False)
+            else: # if the updateall ran without issues, we're all done!
+                self.updateConaryButton.set_sensitive(False)
+                self.updateallButton.set_sensitive(False)
+                self.migrateButton.set_sensitive(False)
         else:
-            self.run_conary(COMMAND3)
-            self.stepOneButton.set_sensitive(False)
-            self.stepTwoButton.set_sensitive(False)
-            self.stepThreeButton.set_sensitive(False)
+            self.run_conary(CONARY_MIGRATE)
+            self.updateConaryButton.set_sensitive(False)
+            self.updateallButton.set_sensitive(False)
+            self.migrateButton.set_sensitive(False)
 
         #TODO: Maybe we want to notify the user of completion and close the window?
 
     def run_conary(self, command):
-        pid = subprocess.Popen([
-            "gnome-terminal",
-            "--command",
-            "bash -c '%s; echo; echo Press Enter to close window; read'" % command]).pid
+        p = subprocess.Popen([
+            "xterm", "-fg", "grey", "-bg", "black", "-fn", "9x15", 
+            "-e", command])
+            #"bash -c '%s; echo; echo Press Enter to close window; read'" % command]).pid
+        retval = p.wait() # xterm waits, gnome-terminal doesn't.
+        conary_exit_status = None
+        with open(CONARY_EXIT_STATUS, 'r') as f:
+            f.flush()
+            try:
+                conary_exit_status = int(f.readline().strip())
+            except:
+                conary_exit_status = 1
+        print "Process %i returned with status %i" % (p.pid, conary_exit_status)
+        return conary_exit_status
+        # wait for and check the return value of the conary operation
+        # based on that, set the sensitivity of the corresponding button.
 
 def main():
     gtk.main()
