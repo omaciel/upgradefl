@@ -85,7 +85,7 @@ important data/documents/media files.
 fd, CONARY_EXIT_STATUS = tempfile.mkstemp(prefix='conary_exit_status-')
 conary_exit_status = os.fdopen(fd, 'r')
 os.close(fd)
-print "Conary exit status lives in %s" % CONARY_EXIT_STATUS
+print "** Conary exit status lives in %s" % CONARY_EXIT_STATUS
 
 #COMMAND1 = "sudo conary update conary --resolve"
 fd, UPDATE_CONARY = tempfile.mkstemp(prefix='update_conary-')
@@ -180,7 +180,8 @@ class UpgradeSystem(object):
 
         #self.window.set_size_request(500, 200)
         
-        # how many times have we tried to updateall?
+        # don't loop endlessly
+        self._update_conary_tries = 0
         self._conary_updateall_tries = 0
         # if we've tried a few times, perhaps it's time to bring out
         # the big migrate hammer?
@@ -250,11 +251,14 @@ class UpgradeSystem(object):
         if button.idx == CONARY_STEP:
             self.updateConaryButton.set_sensitive(False)
             retval = self.run_conary(UPDATE_CONARY)
+            self._update_conary_tries += 1
             if(retval != 0): # ooops, try again (and keep trying)
-                self.updateConaryButton.set_sensitive(True)
-                self.updateallButton.set_sensitive(False)
-                self.migrateButton.set_sensitive(False)
-            else:
+                if(self._update_conary_tries <= self._max_tries):
+                    self.updateConaryButton.set_sensitive(True)
+                    self.updateallButton.set_sensitive(False)
+                    self.migrateButton.set_sensitive(False)
+                # else: All buttons are now inactive
+            else: # move on to the next step
                 self.updateConaryButton.set_sensitive(False)
                 self.updateallButton.set_sensitive(True)
                 self.migrateButton.set_sensitive(False)
@@ -263,19 +267,20 @@ class UpgradeSystem(object):
             retval = self.run_conary(CONARY_UPDATEALL)
             self._conary_updateall_tries += 1
             if(retval != 0):
-                if(self._conary_updateall_tries >= self._max_tries):
-                    # All right, no luck; let the user try the big hammer!
-                    self.updateConaryButton.set_sensitive(False)
-                    self.updateallButton.set_sensitive(False)
-                    self.migrateButton.set_sensitive(True)
-                else: # just try again
+                if(self._conary_updateall_tries <= self._max_tries):
+                    # just try again
                     self.updateConaryButton.set_sensitive(False)
                     self.updateallButton.set_sensitive(True)
                     self.migrateButton.set_sensitive(False)
+                else: # All right, no luck; let the user try the big hammer!
+                    self.updateConaryButton.set_sensitive(False)
+                    self.updateallButton.set_sensitive(False)
+                    self.migrateButton.set_sensitive(True)
             else: # if the updateall ran without issues, we're all done!
                 self.updateConaryButton.set_sensitive(False)
                 self.updateallButton.set_sensitive(False)
                 self.migrateButton.set_sensitive(False)
+                #TODO: we're all done
         else:
             #TODO: What do we do if a migrate fails? Try again?
             self.run_conary(CONARY_MIGRATE)
@@ -286,30 +291,44 @@ class UpgradeSystem(object):
         #TODO: Maybe we want to notify the user of completion and close the window?
 
     def run_conary(self, command):
-        p = subprocess.Popen([
-            "xterm", "-fg", "grey", "-bg", "black", "-fn", "9x15", "-e", command])
-        rv = p.wait() # The idea is to block here.
+        #TODO: what if xterm doesn't exist?!
+        ppid=None
         conary_exit_status = None
-        with open(CONARY_EXIT_STATUS, 'r') as f:
-            f.flush()
-            try:
+        try:
+            cmd_line = ["/usr/bin/xterm", "-fg", "grey", "-bg", "black", "-fn", "9x15",
+                        "-e", command]
+            p = subprocess.Popen(cmd_line)
+            print "** %s has process id %s while executing %s" % (cmd_line[0], p.pid, command)
+            rv = p.wait() # The idea is to block here.
+            with open(CONARY_EXIT_STATUS, 'r') as f:
+                f.flush()
                 ppid = int(f.readline().strip())
                 conary_exit_status = int(f.readline().strip())
                 assert (ppid == p.pid)
-                print "(ppid, conary_exit_status) == (%i,%i)" % (ppid, conary_exit_status)
-            except IOError as (errno, strerror):
-                print "!! I/O error({0}): {1}".format(errno, strerror)
-            except ValueError:
-                print "!! Couldn't parse conary exit status file."
-            except AssertionError:
-                print "!! Conary exit status file not in sync with currently executing process."
-            else:
-                print "Process %i returned with status %i" % (p.pid, conary_exit_status)
-            finally:
-                if (conary_exit_status == None):
-                    conary_exit_status = 1
-            # wait for and check the return value of the conary operation
-            return conary_exit_status
+                print "** Conary exit status file is in sync with current Conary process(%i)." \
+                    % p.pid
+        except OSError as (errno, strerror):
+            print "Executing \'%s\'" % " ".join(cmd_line)
+            print "failed with the following error:"
+            print "  OS error({0}): {1}".format(errno, strerror)
+            conary_exit_status = errno
+        except IOError as (errno, strerror):
+            print "!! I/O error({0}): {1}".format(errno, strerror)
+        except ValueError:
+            print "!! Couldn't parse Conary exit status file ppid=%s, conary_exit_status=%s" \
+                % (ppid, conary_exit_status)
+        except AssertionError:
+            print "!! Conary exit status file is not in sync with current Conary process(%i)." \
+                % p.pid
+        except e:
+            print e
+        else:
+            print "** Process %i returned with status %i" % (p.pid, conary_exit_status)
+        finally:
+            if (conary_exit_status == None):
+                conary_exit_status = -1
+        # wait for and check the return value of the conary operation
+        return conary_exit_status
 
 def main():
     gtk.main()
