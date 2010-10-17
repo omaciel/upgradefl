@@ -92,11 +92,12 @@ fd, UPDATE_CONARY = tempfile.mkstemp(prefix='update_conary-')
 f = os.fdopen(fd, 'w')
 f.write(
 '''#!/bin/sh
-echo "Updating Conary..."
+echo "Updating Conary...(PPID=$PPID)"
 #echo "conary update conary --resolve" && sleep 3
 conary update conary --resolve --verbose
 rv=$?
-echo "$rv" > %s
+echo "$PPID" > %s
+echo "$rv" >> %s
 echo ""
 if [ $rv -eq 0 ]; then
   echo "** Conary updated successfully."
@@ -107,7 +108,7 @@ echo ""
 echo "Press <Return> to close this window."
 read ANSWER
 exit $rv
-''' % CONARY_EXIT_STATUS)
+''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(UPDATE_CONARY, 0755)
 
@@ -119,7 +120,8 @@ echo "Updating packages on the system..."
 #echo "conary updateall" && sleep 3 && rv=1
 conary updateall --verbose
 rv=$?
-echo "$rv" > %s
+echo "$PPID" > %s
+echo "$rv" >> %s
 echo ""
 if [ $rv -eq 0 ]; then
   echo "** System packages updated successfully."
@@ -130,7 +132,7 @@ echo ""
 echo "Press <Return> to close this window."
 read ANSWER
 exit $rv
-''' % CONARY_EXIT_STATUS)
+''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(CONARY_UPDATEALL, 0755)
 
@@ -143,7 +145,8 @@ echo "Resetting your system configuration to installation defaults..."
 #echo "conary migrate group-gnome-dist" && sleep 3 && rv=1
 conary migrate group-gnome-dist
 rv=$?
-echo "$rv" > %s
+echo "$PPID" > %s
+echo "$rv" >> %s
 echo ""
 if [ $rv -eq 0 ]; then
   echo "** System successfully reset to installation defaults."
@@ -154,7 +157,7 @@ echo ""
 echo "Press <Return> to close this window."
 read ANSWER
 exit $rv
-''' % CONARY_EXIT_STATUS)
+''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(CONARY_MIGRATE, 0755)
 
@@ -162,6 +165,7 @@ class UpgradeSystem(object):
 
     # close the window and quit
     def delete_event(self, widget, event, data=None):
+        #TODO: clean up?
         gtk.main_quit()
         return False
 
@@ -175,9 +179,11 @@ class UpgradeSystem(object):
         self.window.set_icon_name(gtk.STOCK_DIALOG_ERROR)
 
         #self.window.set_size_request(500, 200)
-
-        self._conary_updateall_tries = 0 # how many times have we tried to do this?
-        # if we've tried 3 times, perhaps it's time to bring out the big hammer?
+        
+        # how many times have we tried to updateall?
+        self._conary_updateall_tries = 0
+        # if we've tried a few times, perhaps it's time to bring out
+        # the big migrate hammer?
         self._max_tries = 3 
 
         self.window.connect("delete_event", self.delete_event)
@@ -244,7 +250,7 @@ class UpgradeSystem(object):
         if button.idx == CONARY_STEP:
             self.updateConaryButton.set_sensitive(False)
             retval = self.run_conary(UPDATE_CONARY)
-            if(retval != 0): # ooops, try again
+            if(retval != 0): # ooops, try again (and keep trying)
                 self.updateConaryButton.set_sensitive(True)
                 self.updateallButton.set_sensitive(False)
                 self.migrateButton.set_sensitive(False)
@@ -271,6 +277,7 @@ class UpgradeSystem(object):
                 self.updateallButton.set_sensitive(False)
                 self.migrateButton.set_sensitive(False)
         else:
+            #TODO: What do we do if a migrate fails? Try again?
             self.run_conary(CONARY_MIGRATE)
             self.updateConaryButton.set_sensitive(False)
             self.updateallButton.set_sensitive(False)
@@ -280,21 +287,29 @@ class UpgradeSystem(object):
 
     def run_conary(self, command):
         p = subprocess.Popen([
-            "xterm", "-fg", "grey", "-bg", "black", "-fn", "9x15", 
-            "-e", command])
-            #"bash -c '%s; echo; echo Press Enter to close window; read'" % command]).pid
-        retval = p.wait() # xterm waits, gnome-terminal doesn't.
+            "xterm", "-fg", "grey", "-bg", "black", "-fn", "9x15", "-e", command])
+        rv = p.wait() # The idea is to block here.
         conary_exit_status = None
         with open(CONARY_EXIT_STATUS, 'r') as f:
             f.flush()
             try:
+                ppid = int(f.readline().strip())
                 conary_exit_status = int(f.readline().strip())
-            except:
-                conary_exit_status = 1
-        print "Process %i returned with status %i" % (p.pid, conary_exit_status)
-        return conary_exit_status
-        # wait for and check the return value of the conary operation
-        # based on that, set the sensitivity of the corresponding button.
+                assert (ppid == p.pid)
+                print "(ppid, conary_exit_status) == (%i,%i)" % (ppid, conary_exit_status)
+            except IOError as (errno, strerror):
+                print "!! I/O error({0}): {1}".format(errno, strerror)
+            except ValueError:
+                print "!! Couldn't parse conary exit status file."
+            except AssertionError:
+                print "!! Conary exit status file not in sync with currently executing process."
+            else:
+                print "Process %i returned with status %i" % (p.pid, conary_exit_status)
+            finally:
+                if (conary_exit_status == None):
+                    conary_exit_status = 1
+            # wait for and check the return value of the conary operation
+            return conary_exit_status
 
 def main():
     gtk.main()
