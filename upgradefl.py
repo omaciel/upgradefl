@@ -92,7 +92,7 @@ fd, UPDATE_CONARY = tempfile.mkstemp(prefix='update_conary-')
 f = os.fdopen(fd, 'w')
 f.write(
 '''#!/bin/sh
-echo "Updating Conary...(PPID=$PPID)"
+echo "Updating Conary...(ppid=$PPID)"
 #echo "conary update conary --resolve" && sleep 3
 conary update conary --resolve --verbose
 rv=$?
@@ -116,7 +116,7 @@ os.chmod(UPDATE_CONARY, 0755)
 fd, CONARY_UPDATEALL = tempfile.mkstemp(prefix='conary_updateall-')
 f = os.fdopen(fd, 'w')
 f.write('''#!/bin/sh
-echo "Updating packages on the system..."
+echo "Updating packages on the system(ppid=$PPID)..."
 #echo "conary updateall" && sleep 3 && rv=1
 conary updateall --verbose
 rv=$?
@@ -141,7 +141,7 @@ fd, CONARY_MIGRATE = tempfile.mkstemp(prefix='conary_updateall-')
 f = os.fdopen(fd, 'w')
 f.write(
 '''#!/bin/sh
-echo "Resetting your system configuration to installation defaults..."
+echo "Resetting your system configuration to installation defaults(ppid=$PPID)..."
 #echo "conary migrate group-gnome-dist" && sleep 3 && rv=1
 conary migrate group-gnome-dist
 rv=$?
@@ -249,56 +249,65 @@ class UpgradeSystem(object):
 
     def button_clicked(self, button):
         if button.idx == CONARY_STEP:
-            self.updateConaryButton.set_sensitive(False)
             retval = self.run_conary(UPDATE_CONARY)
             self._update_conary_tries += 1
-            if(retval != 0): # ooops, try again (and keep trying)
-                if(self._update_conary_tries <= self._max_tries):
-                    self.updateConaryButton.set_sensitive(True)
-                    self.updateallButton.set_sensitive(False)
-                    self.migrateButton.set_sensitive(False)
-                # else: All buttons are now inactive
-            else: # move on to the next step
+            if(retval != 0): 
+                #TODO: Ask the user to check his internet connection?
+                self.updateConaryButton.set_sensitive(True)
+                self.updateallButton.set_sensitive(False)
+                self.migrateButton.set_sensitive(False)
+                # We need the newest conary for the rest to work.
+            else: 
+                # Conary updated, move on to the next step
                 self.updateConaryButton.set_sensitive(False)
                 self.updateallButton.set_sensitive(True)
                 self.migrateButton.set_sensitive(False)
         elif button.idx == UPDATEALL_STEP:
-            self.updateallButton.set_sensitive(False)
             retval = self.run_conary(CONARY_UPDATEALL)
             self._conary_updateall_tries += 1
             if(retval != 0):
-                if(self._conary_updateall_tries <= self._max_tries):
+                if(self._conary_updateall_tries < self._max_tries):
                     # just try again
                     self.updateConaryButton.set_sensitive(False)
                     self.updateallButton.set_sensitive(True)
                     self.migrateButton.set_sensitive(False)
-                else: # All right, no luck; let the user try the big hammer!
+                else: 
+                    # All right, no luck; let the user try the big hammer!
                     self.updateConaryButton.set_sensitive(False)
-                    self.updateallButton.set_sensitive(False)
+                    self.updateallButton.set_sensitive(True)
                     self.migrateButton.set_sensitive(True)
-            else: # if the updateall ran without issues, we're all done!
+            else: 
+                # if the updateall ran without issues, we're all done!
                 self.updateConaryButton.set_sensitive(False)
                 self.updateallButton.set_sensitive(False)
                 self.migrateButton.set_sensitive(False)
-                #TODO: we're all done
+                #TODO: open update complete dialog box and quit
         else:
-            #TODO: What do we do if a migrate fails? Try again?
-            self.run_conary(CONARY_MIGRATE)
+            #TODO: What do we do if migrating fails? Try again?
             self.updateConaryButton.set_sensitive(False)
             self.updateallButton.set_sensitive(False)
             self.migrateButton.set_sensitive(False)
+            retval = self.run_conary(CONARY_MIGRATE)
+            if (retval != 0):
+                # Just keep trying?
+                self.migrateButton.set_sensitive(True)
+            else:
+                # At least the migrate worked
+                self.migrateButton.set_sensitive(False)
 
         #TODO: Maybe we want to notify the user of completion and close the window?
 
     def run_conary(self, command):
-        #TODO: what if xterm doesn't exist?!
+        #TODO: If xterm doesn't exist, try gnome-terminal?
         ppid=None
         conary_exit_status = None
         try:
-            cmd_line = ["/usr/bin/xterm", "-fg", "grey", "-bg", "black", "-fn", "9x15",
+            cmd_line = ["/usr/bin/xterm", "-fg", "grey", 
+                        "-bg", "black", "-fn", "9x15",
                         "-e", command]
             p = subprocess.Popen(cmd_line)
-            print "** %s has process id %s while executing %s" % (cmd_line[0], p.pid, command)
+            print "** %s is executed by %s (ppid %s)" \
+                % (command, cmd_line[0], p.pid)
             rv = p.wait() # The idea is to block here.
             with open(CONARY_EXIT_STATUS, 'r') as f:
                 f.flush()
@@ -315,15 +324,18 @@ class UpgradeSystem(object):
         except IOError as (errno, strerror):
             print "!! I/O error({0}): {1}".format(errno, strerror)
         except ValueError:
-            print "!! Couldn't parse Conary exit status file ppid=%s, conary_exit_status=%s" \
+            print "!! Couldn't parse Conary exit status file (ppid=%s, conary_exit_status=%s)" \
                 % (ppid, conary_exit_status)
         except AssertionError:
-            print "!! Conary exit status file is not in sync with current Conary process(%i)." \
-                % p.pid
-        except e:
+            print "!! Conary exit status file is not in sync with current Conary process."
+            print "   (current ppid=%i, ppid from file=%i, conary_exit_status from file=%s)" % (p.pid, ppid, conary_exit_status)
+            # Might be 0 if the prior conary operation completed succesfully.
+            conary_exit_status = -1
+        except e: #FIXME: This might be a Java idiom ...
             print e
         else:
-            print "** Process %i returned with status %i" % (p.pid, conary_exit_status)
+            print "** Process %i returned with status %i" \
+                % (p.pid, conary_exit_status)
         finally:
             if (conary_exit_status == None):
                 conary_exit_status = -1
