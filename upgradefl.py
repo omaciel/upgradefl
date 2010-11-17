@@ -70,12 +70,12 @@ The migration process should not tamper with any documents, media files or other
 
 (CONARY_STEP, UPDATEALL_STEP, MIGRATE_STEP) = range(3)
 
-## Using files allows for more control than using commands
-# Set up a file to use for conary return values -- 
-# gnome-terminal does not appear to make the conary exit
-# status available, so we use xterm instead.
+## Using shell scripts allows for more control than using commands
+# Set up a file to use for capturing conary return values -- 
+# neither gnome-terminal nor xterm appear to make the conary exit
+# status available.
 fd, CONARY_EXIT_STATUS = tempfile.mkstemp(prefix='conary_exit_status-')
-conary_exit_status = os.fdopen(fd, 'r')
+os.fdopen(fd, 'r')
 os.close(fd)
 print "** Conary exit status lives in %s" % CONARY_EXIT_STATUS
 
@@ -103,7 +103,7 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(UPDATE_CONARY, 0755)
-# TODO: Save a reference so that we can clean up afterwards?
+# TODO: We already have a reference, so why not clean up?
 
 #COMMAND2 = "sudo conary updateall"
 fd, CONARY_UPDATEALL = tempfile.mkstemp(prefix='conary_updateall-')
@@ -128,7 +128,7 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(CONARY_UPDATEALL, 0755)
-# TODO: Save a reference so that we can clean up afterwards?
+# TODO: We already have a reference, so why not clean up?
 
 #COMMAND3 = "sudo conary migrate group-gnome-dist"
 fd, CONARY_MIGRATE = tempfile.mkstemp(prefix='conary_updateall-')
@@ -154,13 +154,13 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(CONARY_MIGRATE, 0755)
-# TODO: Save a reference so that we can clean up afterwards?
+# TODO: We already have a reference, so why not clean up?
 
 class UpgradeSystem(object):
 
     # close the window and quit
     def delete_event(self, widget, event, data=None):
-        #TODO: clean up?
+        #TODO: clean up temporary files?
         gtk.main_quit()
         return False
 
@@ -169,7 +169,6 @@ class UpgradeSystem(object):
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_resizable(False)
         self.window.set_urgency_hint(True)
-
         self.window.set_title("Foresight Upgrade Helper")
         self.window.set_icon_name(gtk.STOCK_DIALOG_ERROR)
         self.window.set_border_width(10)
@@ -184,12 +183,11 @@ class UpgradeSystem(object):
         self._max_tries = 3 
 
         self.window.connect("delete_event", self.delete_event)
-
         self.create_widgets()
         self.window.show_all()
 
     def create_widgets(self):
-
+        # The entire window fits comfortably on a 1024x600 monitor
         self.updateConaryButton = gtk.Button("Update Conary Now")
         self.updateConaryButton.set_tooltip_text(
             "This will attempt to update Conary, the Foresight"
@@ -218,7 +216,6 @@ class UpgradeSystem(object):
         self.infoLabel = gtk.Label()
         self.infoLabel.set_markup(INFOTEXT)
         self.infoLabel.set_line_wrap(False)
-        #self.infoLabel.set_alignment(0, 0)
 
         self.updateConaryLabel = gtk.Label()
         self.updateConaryLabel.set_markup(CONARY_TEXT)
@@ -241,10 +238,10 @@ class UpgradeSystem(object):
         #infoLabelAlign.add(self.infoLabel)
         topContainer.pack_start(self.infoLabel, True, True, 10)
 
+        # table is packed into the VBox later.
         table = gtk.Table(rows=4, columns=2, homogeneous=False)
         table.set_col_spacings(10)
         table.set_row_spacings(10)
-        # use xpadding=x, ypadding=y for spacing?
 
         self.updateConaryFrame = gtk.Frame("Step 1 - Update Conary")
         self.updateConaryFrame.add(self.updateConaryLabel)
@@ -252,23 +249,21 @@ class UpgradeSystem(object):
                             xoptions=gtk.FILL, yoptions=gtk.FILL)
         table.attach(self.updateConaryButton, 0, 1, 1, 2, 
                             yoptions=gtk.SHRINK)
-        #                    xpadding=2, ypadding=2)
+
         self.updateallFrame = gtk.Frame("Step 2a - Update All Installed Packages")
         self.updateallFrame.add(self.updateallLabel)
         table.attach(self.updateallFrame, 0, 1, 2, 3,
                             xoptions=gtk.FILL, yoptions=gtk.FILL) 
-        #                    xpadding=10, ypadding=2)
         table.attach(self.updateallButton, 0, 1, 3, 4, 
                             yoptions=gtk.SHRINK)
-        #                    xpadding=2, ypadding=2)
+
         self.migrateFrame = gtk.Frame("Step 2b - Migrate To Default Installation")
         self.migrateFrame.add(self.migrateLabel)
         table.attach(self.migrateFrame, 1, 2, 0, 3,
                             xoptions=gtk.FILL, yoptions=gtk.FILL)
-        #                    xpadding=10, ypadding=2)
         table.attach(self.migrateButton, 1, 2, 3, 4, 
                             yoptions=gtk.SHRINK)
-        #                    xpadding=2, ypadding=10)
+
         topContainer.pack_start(table, False, False, 0)
         self.window.add(topContainer)
 
@@ -333,7 +328,7 @@ class UpgradeSystem(object):
             p = subprocess.Popen(cmd_line)
             print "** %s is executed by %s (ppid %s)" \
                 % (command, cmd_line[0], p.pid)
-            rv = p.wait() # The idea is to block here.
+            rv = p.wait() # The idea is to block the UI here...
             with open(CONARY_EXIT_STATUS, 'r') as f:
                 f.flush()
                 ppid = int(f.readline().strip())
