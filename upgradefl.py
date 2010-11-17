@@ -41,10 +41,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 INFOTEXT = """<b>Updates to Foresight are now available.</b>
 
-For a variety of technical reasons, the update process is temporarily more complex than usual.  After this update process is complete, your update process will return to normal.
+For a variety of technical reasons, the update process is temporarily more      
+complex than usual.  After this update process is complete,  your update        
+process will return to normal.
 
 <b>NOTE:</b>
-Before attempting to complete the update process, you should close any programs running programs on your desktop."""
+Before attempting to complete the update process, you should close any          
+running programs on your desktop.                                               
+"""
 
 CONARY_TEXT="""
 First, the system software manager, Conary, needs to be updated to the latest version.  
@@ -213,14 +217,13 @@ class UpgradeSystem(object):
 
         self.infoLabel = gtk.Label()
         self.infoLabel.set_markup(INFOTEXT)
-        self.infoLabel.set_line_wrap(True)
-        self.infoLabel.set_alignment(0, 0)
+        self.infoLabel.set_line_wrap(False)
+        #self.infoLabel.set_alignment(0, 0)
 
         self.updateConaryLabel = gtk.Label()
         self.updateConaryLabel.set_markup(CONARY_TEXT)
         self.updateConaryLabel.set_line_wrap(True)
         self.updateConaryLabel.set_alignment(0, 0)
-        #self.updateConaryLabel.
 
         self.updateallLabel = gtk.Label()
         self.updateallLabel.set_markup(UPDATEALL_TEXT)
@@ -232,37 +235,41 @@ class UpgradeSystem(object):
         self.migrateLabel.set_line_wrap(True)
         self.migrateLabel.set_alignment(0, 0)
 
-        topContainer = gtk.Table(rows=5, columns=2, homogeneous=False)
-        topContainer.set_col_spacings(10)
-        topContainer.set_row_spacings(10)
+        # Let's see if we can make the infoLabel fill the screen horizontally
+        topContainer = gtk.VBox()
+        #infoLabelAlign = gtk.Alignment(0,0,0,0)
+        #infoLabelAlign.add(self.infoLabel)
+        topContainer.pack_start(self.infoLabel, True, True, 10)
+
+        table = gtk.Table(rows=4, columns=2, homogeneous=False)
+        table.set_col_spacings(10)
+        table.set_row_spacings(10)
         # use xpadding=x, ypadding=y for spacing?
 
-        topContainer.attach(self.infoLabel, 0, 2, 0, 1,
-                            xoptions=gtk.FILL, yoptions=gtk.FILL)
-        #                    xpadding=10, ypadding=2)
         self.updateConaryFrame = gtk.Frame("Step 1 - Update Conary")
         self.updateConaryFrame.add(self.updateConaryLabel)
-        topContainer.attach(self.updateConaryFrame, 0, 1, 1, 2,
+        table.attach(self.updateConaryFrame, 0, 1, 0, 1,
                             xoptions=gtk.FILL, yoptions=gtk.FILL)
-        topContainer.attach(self.updateConaryButton, 0, 1, 2, 3, 
+        table.attach(self.updateConaryButton, 0, 1, 1, 2, 
                             yoptions=gtk.SHRINK)
         #                    xpadding=2, ypadding=2)
         self.updateallFrame = gtk.Frame("Step 2a - Update All Installed Packages")
         self.updateallFrame.add(self.updateallLabel)
-        topContainer.attach(self.updateallFrame, 0, 1, 3, 4,
+        table.attach(self.updateallFrame, 0, 1, 2, 3,
                             xoptions=gtk.FILL, yoptions=gtk.FILL) 
         #                    xpadding=10, ypadding=2)
-        topContainer.attach(self.updateallButton, 0, 1, 4, 5, 
+        table.attach(self.updateallButton, 0, 1, 3, 4, 
                             yoptions=gtk.SHRINK)
         #                    xpadding=2, ypadding=2)
         self.migrateFrame = gtk.Frame("Step 2b - Migrate To Default Installation")
         self.migrateFrame.add(self.migrateLabel)
-        topContainer.attach(self.migrateFrame, 1, 2, 1, 4,
+        table.attach(self.migrateFrame, 1, 2, 0, 3,
                             xoptions=gtk.FILL, yoptions=gtk.FILL)
         #                    xpadding=10, ypadding=2)
-        topContainer.attach(self.migrateButton, 1, 2, 4, 5, 
+        table.attach(self.migrateButton, 1, 2, 3, 4, 
                             yoptions=gtk.SHRINK)
         #                    xpadding=2, ypadding=10)
+        topContainer.pack_start(table, False, False, 0)
         self.window.add(topContainer)
 
     def button_clicked(self, button):
