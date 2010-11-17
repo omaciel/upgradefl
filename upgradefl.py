@@ -39,42 +39,30 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-INFOTEXT = """
-<b>Updates to Foresight are now available.</b>
+INFOTEXT = """<b>Updates to Foresight are now available.</b>
 
-For a variety of technical reasons, the update process is 
-temporarily more complex than usual.  After this update 
-process is complete, your update process will return to normal.
+For a variety of technical reasons, the update process is temporarily more complex than usual.  After this update process is complete, your update process will return to normal.
 
-In order to complete this update process, you should first
-close running programs.
+<b>NOTE:</b>
+Before attempting to complete the update process, you should close any programs running programs on your desktop."""
 
-Second, you need to update to the latest version of Conary.
-"""
+CONARY_TEXT="""
+First, the system software manager, Conary, needs to be updated to the latest version.  
+
+In fact, the rest of the update process cannot continue until Conary has been updated successfully."""
 
 UPDATEALL_TEXT = """
-Third, try updating your system. 
+Second, after having updated Conary successfully, you should try updating all the installed packages on your system.
 
-Depending on which packages you have installed in the past,
-the update process may fail, possibly with messages about
-"file conflicts" or "dependency failures".  
-"""
+Depending on which packages you have installed in the past, the update process may fail, possibly with messages about "file conflicts" or "dependency failures"."""
 
 MIGRATE_TEXT = """
-If the update process fails, you will need to migrate your
-system to its default state -- i.e. roughly the same state
-your system would be in if you had just installed it from
-a Foresight DVD.
+If the update process in step 2a fails, you will need to migrate your system to its default state -- i.e. roughly the same state your system would be in if you had just installed it from a Foresight DVD.
 
-This will remove extra packages that you have previously
-installed, and you will have to add them back after this step.
+This will remove any extra packages that you have previously installed, and you will have to add them back after this step.
 
-The good news is that the migration process should not tamper
-with any documents, media files or other saved data in your
-home folder.  But if you are the paranoid sort, now would be
-a good time to ensure that you have good backups of your
-important data/documents/media files.
-"""
+<b>NOTE:</b>
+The migration process should not tamper with any documents, media files or other saved data in your home folder.  But if you are the paranoid sort, now would be a good time to ensure that you have good backups of your important data/documents/media files."""
 
 (CONARY_STEP, UPDATEALL_STEP, MIGRATE_STEP) = range(3)
 
@@ -111,12 +99,13 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(UPDATE_CONARY, 0755)
+# TODO: Save a reference so that we can clean up afterwards?
 
 #COMMAND2 = "sudo conary updateall"
 fd, CONARY_UPDATEALL = tempfile.mkstemp(prefix='conary_updateall-')
 f = os.fdopen(fd, 'w')
 f.write('''#!/bin/sh
-echo "Updating packages on the system(ppid=$PPID)..."
+echo "Updating packages on the system...(ppid=$PPID)"
 #echo "conary updateall" && sleep 3 && rv=1
 conary updateall --verbose
 rv=$?
@@ -135,13 +124,14 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(CONARY_UPDATEALL, 0755)
+# TODO: Save a reference so that we can clean up afterwards?
 
 #COMMAND3 = "sudo conary migrate group-gnome-dist"
 fd, CONARY_MIGRATE = tempfile.mkstemp(prefix='conary_updateall-')
 f = os.fdopen(fd, 'w')
 f.write(
 '''#!/bin/sh
-echo "Resetting your system configuration to installation defaults(ppid=$PPID)..."
+echo "Resetting your system configuration to installation defaults...(ppid=$PPID)"
 #echo "conary migrate group-gnome-dist" && sleep 3 && rv=1
 conary migrate group-gnome-dist
 rv=$?
@@ -160,6 +150,7 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(CONARY_MIGRATE, 0755)
+# TODO: Save a reference so that we can clean up afterwards?
 
 class UpgradeSystem(object):
 
@@ -177,6 +168,7 @@ class UpgradeSystem(object):
 
         self.window.set_title("Foresight Upgrade Helper")
         self.window.set_icon_name(gtk.STOCK_DIALOG_ERROR)
+        self.window.set_border_width(10)
 
         #self.window.set_size_request(500, 200)
         
@@ -193,8 +185,6 @@ class UpgradeSystem(object):
         self.window.show_all()
 
     def create_widgets(self):
-        # Using a table yields a 'prettier' interface
-        topContainer = gtk.Table(rows=6, columns=1, homogeneous=False)
 
         self.updateConaryButton = gtk.Button("Update Conary Now")
         self.updateConaryButton.set_tooltip_text(
@@ -205,7 +195,7 @@ class UpgradeSystem(object):
         self.updateallButton = gtk.Button("Update All Installed Packages")
         self.updateallButton.set_tooltip_text(
             "This will attempt to update all the packages"
-            " on your system to their newest versions available.")
+            " on your system to their newest available versions.")
         self.updateallButton.set_sensitive(False)
         self.updateallButton.idx = UPDATEALL_STEP
 
@@ -224,27 +214,55 @@ class UpgradeSystem(object):
         self.infoLabel = gtk.Label()
         self.infoLabel.set_markup(INFOTEXT)
         self.infoLabel.set_line_wrap(True)
+        self.infoLabel.set_alignment(0, 0)
+
+        self.updateConaryLabel = gtk.Label()
+        self.updateConaryLabel.set_markup(CONARY_TEXT)
+        self.updateConaryLabel.set_line_wrap(True)
+        self.updateConaryLabel.set_alignment(0, 0)
+        #self.updateConaryLabel.
 
         self.updateallLabel = gtk.Label()
         self.updateallLabel.set_markup(UPDATEALL_TEXT)
         self.updateallLabel.set_line_wrap(True)
+        self.updateallLabel.set_alignment(0, 0)
 
         self.migrateLabel = gtk.Label()
         self.migrateLabel.set_markup(MIGRATE_TEXT)
         self.migrateLabel.set_line_wrap(True)
+        self.migrateLabel.set_alignment(0, 0)
 
-        topContainer.attach(self.infoLabel, 0, 1, 0, 1, 
-                            xpadding=10, ypadding=2)
-        topContainer.attach(self.updateConaryButton, 0, 1, 1, 2, 
-                            xoptions=gtk.SHRINK, xpadding=2, ypadding=2)
-        topContainer.attach(self.updateallLabel, 0, 1, 2, 3, 
-                            xpadding=10, ypadding=2)
-        topContainer.attach(self.updateallButton, 0, 1, 3, 4, 
-                            xoptions=gtk.SHRINK, xpadding=2, ypadding=2)
-        topContainer.attach(self.migrateLabel, 0, 1, 4, 5, 
-                            xpadding=10, ypadding=2)
-        topContainer.attach(self.migrateButton, 0, 1, 5, 6, 
-                            xoptions=gtk.SHRINK, xpadding=2, ypadding=10)
+        topContainer = gtk.Table(rows=5, columns=2, homogeneous=False)
+        topContainer.set_col_spacings(10)
+        topContainer.set_row_spacings(10)
+        # use xpadding=x, ypadding=y for spacing?
+
+        topContainer.attach(self.infoLabel, 0, 2, 0, 1,
+                            xoptions=gtk.FILL, yoptions=gtk.FILL)
+        #                    xpadding=10, ypadding=2)
+        self.updateConaryFrame = gtk.Frame("Step 1 - Update Conary")
+        self.updateConaryFrame.add(self.updateConaryLabel)
+        topContainer.attach(self.updateConaryFrame, 0, 1, 1, 2,
+                            xoptions=gtk.FILL, yoptions=gtk.FILL)
+        topContainer.attach(self.updateConaryButton, 0, 1, 2, 3, 
+                            yoptions=gtk.SHRINK)
+        #                    xpadding=2, ypadding=2)
+        self.updateallFrame = gtk.Frame("Step 2a - Update All Installed Packages")
+        self.updateallFrame.add(self.updateallLabel)
+        topContainer.attach(self.updateallFrame, 0, 1, 3, 4,
+                            xoptions=gtk.FILL, yoptions=gtk.FILL) 
+        #                    xpadding=10, ypadding=2)
+        topContainer.attach(self.updateallButton, 0, 1, 4, 5, 
+                            yoptions=gtk.SHRINK)
+        #                    xpadding=2, ypadding=2)
+        self.migrateFrame = gtk.Frame("Step 2b - Migrate To Default Installation")
+        self.migrateFrame.add(self.migrateLabel)
+        topContainer.attach(self.migrateFrame, 1, 2, 1, 4,
+                            xoptions=gtk.FILL, yoptions=gtk.FILL)
+        #                    xpadding=10, ypadding=2)
+        topContainer.attach(self.migrateButton, 1, 2, 4, 5, 
+                            yoptions=gtk.SHRINK)
+        #                    xpadding=2, ypadding=10)
         self.window.add(topContainer)
 
     def button_clicked(self, button):
@@ -342,9 +360,9 @@ class UpgradeSystem(object):
         # wait for and check the return value of the conary operation
         return conary_exit_status
 
-def main():
-    gtk.main()
+    def main(self):
+        gtk.main()
 
 if __name__ == "__main__":
-    example = UpgradeSystem()
-    main()
+    app = UpgradeSystem()
+    app.main()
