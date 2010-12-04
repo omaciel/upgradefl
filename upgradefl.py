@@ -76,7 +76,7 @@ The migration process should not tamper with any documents, media files or other
 # status available.
 fd, CONARY_EXIT_STATUS = tempfile.mkstemp(prefix='conary_exit_status-')
 os.fdopen(fd, 'r')
-os.close(fd)
+#os.close(fd)
 print "** Conary exit status lives in %s" % CONARY_EXIT_STATUS
 
 #COMMAND1 = "sudo conary update conary --resolve"
@@ -167,7 +167,6 @@ class UpgradeSystem(object):
     def __init__(self):
         # Create a new window
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        self.window.set_resizable(False)
         self.window.set_urgency_hint(True)
         self.window.set_title("Foresight Upgrade Helper")
         self.window.set_icon_name(gtk.STOCK_DIALOG_ERROR)
@@ -265,7 +264,14 @@ class UpgradeSystem(object):
                             yoptions=gtk.SHRINK)
 
         topContainer.pack_start(table, False, False, 0)
-        self.window.add(topContainer)
+        scrolled_window = gtk.ScrolledWindow()
+        scrolled_window.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        scrolled_window.add_with_viewport(topContainer)
+        self.window.add(scrolled_window)
+        self.window.set_size_request(640, 480) # looks right on my box!
+        self.window.set_resizable(True)
+
+
 
     def button_clicked(self, button):
         if button.idx == CONARY_STEP:
