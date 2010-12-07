@@ -149,6 +149,19 @@ f.close()
 os.chmod(CONARY_MIGRATE, 0755)
 # TODO: We already have a reference, so why not clean up?
 
+def cleanup():
+    files = [ "%s" % CONARY_EXIT_STATUS, "%s" % UPDATE_CONARY,
+              "%s" % CONARY_UPDATEALL, "%s" % CONARY_MIGRATE ]
+    print "** Cleaning up after upgradefl.py:"
+    for file in files:
+        try:
+            print "** Deleting %s ..." % file
+            os.remove(file)
+        except Exception, e:
+            print "!! Could not delete file %s:" % file
+            print e
+    print "== Done cleaning up after upgradefl.py."
+
 class UpgradeSystem(object):
 
     # close the window and quit
@@ -343,7 +356,7 @@ class UpgradeSystem(object):
             print "   (current ppid=%i, ppid from file=%i, conary_exit_status from file=%s)" % (p.pid, ppid, conary_exit_status)
             # Might be 0 if the prior conary operation completed succesfully.
             conary_exit_status = -1
-        except e: #FIXME: This might be a Java idiom ...
+        except Exception, e:
             print e
         else:
             print "** Process %i returned with status %i" \
@@ -359,4 +372,10 @@ class UpgradeSystem(object):
 
 if __name__ == "__main__":
     app = UpgradeSystem()
-    app.main()
+    try:
+        app.main()
+    except Exception, e:
+        print e
+    finally:
+        cleanup()
+        pass
