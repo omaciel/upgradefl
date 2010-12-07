@@ -124,7 +124,7 @@ os.chmod(CONARY_UPDATEALL, 0755)
 # TODO: We already have a reference, so why not clean up?
 
 #COMMAND3 = "sudo conary migrate group-gnome-dist"
-fd, CONARY_MIGRATE = tempfile.mkstemp(prefix='conary_updateall-')
+fd, CONARY_MIGRATE = tempfile.mkstemp(prefix='conary_migrate-')
 f = os.fdopen(fd, 'w')
 f.write(
 '''#!/bin/sh
@@ -160,10 +160,12 @@ def cleanup():
         except Exception, e:
             print "!! Could not delete file %s:" % file
             print e
-    print "== Done cleaning up after upgradefl.py."
+    print "== Done cleaning up after upgradefl.py"
 
 class UpgradeSystem(object):
-
+    """
+    Create an UI for controlling the upgrade process.
+    """
     # close the window and quit
     def delete_event(self, widget, event, data=None):
         #TODO: clean up temporary files?
@@ -172,7 +174,7 @@ class UpgradeSystem(object):
 
     def __init__(self):
 
-        # don't loop endlessly
+        # don't loop endlessly in the updateall step.
         self._update_conary_tries = 0
         self._conary_updateall_tries = 0
         # if we've tried a few times, perhaps it's time to bring out
@@ -192,6 +194,10 @@ class UpgradeSystem(object):
         self.window.show_all()
     
     def create_text_frame(self, content_text, my_padding=10):
+        """
+        Convenience function for creating an aligned text box.
+        content_text is expected to be a label.
+        """
         frameVBox = gtk.VBox()
         frameHBox = gtk.HBox()
         alignment = gtk.Alignment(0.0, 0.0)
@@ -238,30 +244,27 @@ class UpgradeSystem(object):
         self.updateallLabel = self.create_text_label(UPDATEALL_TEXT)
         self.migrateLabel = self.create_text_label(MIGRATE_TEXT)
 
+        self.infoLabelFrame = self.create_text_frame(self.infoLabel)
+        self.updateConaryFrame = gtk.Frame("Step 1 - Update Conary")
+        self.updateConaryFrame.add(self.create_text_frame(self.updateConaryLabel))
+        self.updateallFrame = gtk.Frame("Step 2a - Update All Installed Packages")
+        self.updateallFrame.add(self.create_text_frame(self.updateallLabel))
+        self.migrateFrame = gtk.Frame("Step 2b - Migrate To Installation Defaults")
+        self.migrateFrame.add(self.create_text_frame(self.migrateLabel))
+
         # Let's see if we can make some vertical space between elements
         vpadding = 2
         topVBox = gtk.VBox(homogeneous=False, spacing=10)
-        self.infoLabelFrame = self.create_text_frame(self.infoLabel)
         topVBox.pack_start(self.infoLabelFrame,
                            expand=False, fill=False, padding=vpadding)
-
-        self.updateConaryFrame = gtk.Frame("Step 1 - Update Conary")
-        self.updateConaryFrame.add(self.create_text_frame(self.updateConaryLabel))
         topVBox.pack_start(self.updateConaryFrame, False, False, vpadding)
         topVBox.pack_start(self.updateConaryButton, False, False, vpadding)
         # Have the updateConaryButton be selected by default
         self.updateConaryButton.set_flags(gtk.CAN_DEFAULT)
-
-        self.updateallFrame = gtk.Frame("Step 2a - Update All Installed Packages")
-        self.updateallFrame.add(self.create_text_frame(self.updateallLabel))
         topVBox.pack_start(self.updateallFrame, False, False, vpadding)
         topVBox.pack_start(self.updateallButton, False, False, vpadding)
-
-        self.migrateFrame = gtk.Frame("Step 2b - Migrate To Installation Defaults")
-        self.migrateFrame.add(self.create_text_frame(self.migrateLabel))
         topVBox.pack_start(self.migrateFrame, False, False, vpadding)
         topVBox.pack_start(self.migrateButton, False, False, vpadding)
-
         # Padding ensures that we don't pack right up against the edge of
         # the window (spacing is irrelevant due to single column layout)
         topHBox = gtk.HBox()
@@ -272,6 +275,20 @@ class UpgradeSystem(object):
         scrolled_window.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
         scrolled_window.add_with_viewport(topHBox)
         self.window.add(scrolled_window)
+
+    def update_done(self, header, text):
+        """
+        Present a dialog box with a header, a message text 
+        and an Exit button. The Exit button exits the program.
+        """
+        dialog = gtk.Dialog(title=header, 
+                            parent=self.window, flags=gtk.DIALOG_MODAL)
+        msg = self.create_text_frame(self.create_text_label(text))
+        exit_button = gtk.Button(label="Exit", stock=None)
+        exit_button.connect("clicked", self.delete_event, None)
+        dialog.vbox.pack_start(msg, True, True, 10)
+        dialog.action_area.pack_end(exit_button, True, True, 10)
+        dialog.show_all()
 
     def button_clicked(self, button):
         if button.idx == CONARY_STEP:
@@ -307,7 +324,13 @@ class UpgradeSystem(object):
                 self.updateConaryButton.set_sensitive(False)
                 self.updateallButton.set_sensitive(False)
                 self.migrateButton.set_sensitive(False)
-                #TODO: open update complete dialog box and quit
+                header = "Update Complete"
+                text = """
+Successfully updated all installed packages.  
+               
+Press <i>Exit</i> to close the Foresight upgrade helper program.
+"""
+                self.update_done(header, text)
         else:
             #TODO: What do we do if migrating fails? Try again?
             self.updateConaryButton.set_sensitive(False)
@@ -320,6 +343,13 @@ class UpgradeSystem(object):
             else:
                 # At least the migrate worked
                 self.migrateButton.set_sensitive(False)
+                header = "Migration Complete"
+                text = """
+Successfully migrated to installation defaults.  
+               
+Press <i>Exit</i> to close the Foresight upgrade helper program.
+"""
+                self.update_done(header, text)
 
         #TODO: Maybe we want to notify the user of completion and close the window?
 
@@ -328,8 +358,9 @@ class UpgradeSystem(object):
         ppid=None
         conary_exit_status = None
         try:
-            cmd_line = ["/usr/bin/xterm", "-fg", "grey", "-bg", "black", "-fn", "9x15",
-                        "-j", "-sb", "-rightbar", "-sl", "4096", "-e", command]
+            cmd_line = ["/usr/bin/xterm", "-fg", "grey", "-bg", "black",
+                        "-fn", "9x15", "-j", "-sb", "-rightbar", "-sl", "4096",
+                        "-e", command]
             p = subprocess.Popen(cmd_line)
             print "** %s is executed by %s (ppid %s)" \
                 % (command, cmd_line[0], p.pid)
@@ -354,7 +385,7 @@ class UpgradeSystem(object):
         except AssertionError:
             print "!! Conary exit status file is not in sync with current Conary process."
             print "   (current ppid=%i, ppid from file=%i, conary_exit_status from file=%s)" % (p.pid, ppid, conary_exit_status)
-            # Might be 0 if the prior conary operation completed succesfully.
+            # Might be left at 0 if the prior conary operation completed succesfully.
             conary_exit_status = -1
         except Exception, e:
             print e
@@ -378,4 +409,3 @@ if __name__ == "__main__":
         print e
     finally:
         cleanup()
-        pass
