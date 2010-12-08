@@ -96,7 +96,6 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(UPDATE_CONARY, 0755)
-# TODO: We already have a reference, so why not clean up?
 
 #COMMAND2 = "sudo conary updateall"
 fd, CONARY_UPDATEALL = tempfile.mkstemp(prefix='conary_updateall-')
@@ -121,7 +120,6 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(CONARY_UPDATEALL, 0755)
-# TODO: We already have a reference, so why not clean up?
 
 #COMMAND3 = "sudo conary migrate group-gnome-dist"
 fd, CONARY_MIGRATE = tempfile.mkstemp(prefix='conary_migrate-')
@@ -147,7 +145,6 @@ exit $rv
 ''' % (CONARY_EXIT_STATUS, CONARY_EXIT_STATUS))
 f.close()
 os.chmod(CONARY_MIGRATE, 0755)
-# TODO: We already have a reference, so why not clean up?
 
 def cleanup():
     files = [ CONARY_EXIT_STATUS, UPDATE_CONARY,
@@ -168,7 +165,6 @@ class UpgradeSystem(object):
     """
     # close the window and quit
     def delete_event(self, widget, event, data=None):
-        #TODO: clean up temporary files?
         gtk.main_quit()
         return False
 
@@ -187,7 +183,7 @@ class UpgradeSystem(object):
         self.window.set_title("Foresight Upgrade Helper")
         self.window.set_icon_name(gtk.STOCK_DIALOG_ERROR)
         #self.window.set_border_width(0)
-        self.window.set_size_request(450, 500) # looks right on my box!
+        self.window.set_size_request(450, 536) # 600 - 2*32
         self.window.set_resizable(True)
         self.window.connect("delete_event", self.delete_event)
         self.create_widgets()
@@ -213,7 +209,9 @@ class UpgradeSystem(object):
         return label
 
     def create_widgets(self):
-        # The entire window fits comfortably on a 1024x600 monitor
+        """
+        Convenience UI thunk (packs the UI elements).
+        """
         self.updateConaryButton = gtk.Button("Update Conary Now")
         self.updateConaryButton.set_tooltip_text(
             "This will attempt to update Conary, the Foresight"
@@ -255,22 +253,21 @@ class UpgradeSystem(object):
         # Let's see if we can make some vertical space between elements
         vpadding = 2
         topVBox = gtk.VBox(homogeneous=False, spacing=10)
-        topVBox.pack_start(self.infoLabelFrame,
-                           expand=False, fill=False, padding=vpadding)
-        topVBox.pack_start(self.updateConaryFrame, False, False, vpadding)
-        topVBox.pack_start(self.updateConaryButton, False, False, vpadding)
-        # Have the updateConaryButton be selected by default
+        for element in [ self.infoLabelFrame,
+                         self.updateConaryButton,
+                         self.updateallFrame,
+                         self.updateallButton,
+                         self.migrateFrame,
+                         self.migrateButton ]:
+            topVBox.pack_start(element, expand=False, fill=False, padding=vpadding)
+        # Why not have the first button selected by default?
         self.updateConaryButton.set_flags(gtk.CAN_DEFAULT)
-        topVBox.pack_start(self.updateallFrame, False, False, vpadding)
-        topVBox.pack_start(self.updateallButton, False, False, vpadding)
-        topVBox.pack_start(self.migrateFrame, False, False, vpadding)
-        topVBox.pack_start(self.migrateButton, False, False, vpadding)
         # Padding ensures that we don't pack right up against the edge of
         # the window (spacing is irrelevant due to single column layout)
         topHBox = gtk.HBox()
         topHBox.pack_start(topVBox, True, False, padding=10)
 
-        # Always show the vertical scrollbar
+        # Always show the vertical scrollbar, but never the horizontal.
         scrolled_window = gtk.ScrolledWindow()
         scrolled_window.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
         scrolled_window.add_with_viewport(topHBox)
@@ -350,8 +347,6 @@ Successfully migrated to installation defaults.
 Press <i>Exit</i> to close the Foresight upgrade helper program.
 """
                 self.update_done(header, text)
-
-        #TODO: Maybe we want to notify the user of completion and close the window?
 
     def run_conary(self, command):
         #TODO: If xterm doesn't exist, try gnome-terminal?
