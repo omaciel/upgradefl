@@ -150,8 +150,8 @@ os.chmod(CONARY_MIGRATE, 0755)
 # TODO: We already have a reference, so why not clean up?
 
 def cleanup():
-    files = [ "%s" % CONARY_EXIT_STATUS, "%s" % UPDATE_CONARY,
-              "%s" % CONARY_UPDATEALL, "%s" % CONARY_MIGRATE ]
+    files = [ CONARY_EXIT_STATUS, UPDATE_CONARY,
+              CONARY_UPDATEALL, CONARY_MIGRATE ]
     print "** Cleaning up after upgradefl.py:"
     for file in files:
         try:
