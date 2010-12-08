@@ -79,7 +79,7 @@ f.write(
 '''#!/bin/sh
 echo "Updating Conary...(ppid=$PPID)"
 #echo "conary update conary --resolve" && sleep 3
-conary update conary --resolve --verbose
+conary update conary --resolve --verbose --no-interactive
 rv=$?
 echo "$PPID" > %s
 echo "$rv" >> %s
@@ -103,7 +103,7 @@ f = os.fdopen(fd, 'w')
 f.write('''#!/bin/sh
 echo "Updating packages on the system...(ppid=$PPID)"
 #echo "conary updateall" && sleep 3 && rv=1
-conary updateall --verbose
+conary updateall --verbose --no-interactive
 rv=$?
 echo "$PPID" > %s
 echo "$rv" >> %s
@@ -128,7 +128,7 @@ f.write(
 '''#!/bin/sh
 echo "Resetting your system configuration to installation defaults...(ppid=$PPID)"
 #echo "conary migrate group-gnome-dist" && sleep 3 && rv=1
-conary migrate group-gnome-dist
+conary migrate group-gnome-dist --verbose --no-interactive
 rv=$?
 echo "$PPID" > %s
 echo "$rv" >> %s
