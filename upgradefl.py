@@ -225,7 +225,7 @@ class UpgradeSystem(object):
         self.updateallButton.set_sensitive(False)
         self.updateallButton.idx = UPDATEALL_STEP
 
-        self.migrateButton = gtk.Button("Migrate To Default Installation")
+        self.migrateButton = gtk.Button("Migrate To Installation Defaults")
         self.migrateButton.set_tooltip_text(
             "This will attempt to migrate your system to its installation defaults."
             " Only do this if the \'Update All Installed Packages\' step"
