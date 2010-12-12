@@ -101,7 +101,7 @@ os.chmod(UPDATE_CONARY, 0755)
 fd, CONARY_UPDATEALL = tempfile.mkstemp(prefix='conary_updateall-')
 f = os.fdopen(fd, 'w')
 f.write('''#!/bin/sh
-echo "Updating packages on the system...(ppid=$PPID)"
+echo "Updating all the installed packages on your system...(ppid=$PPID)"
 #echo "conary updateall" && sleep 3 && rv=1
 conary updateall --verbose --no-interactive
 rv=$?
@@ -225,7 +225,7 @@ class UpgradeSystem(object):
         self.updateallButton.set_sensitive(False)
         self.updateallButton.idx = UPDATEALL_STEP
 
-        self.migrateButton = gtk.Button("Migrate To Default Installation")
+        self.migrateButton = gtk.Button("Migrate To Installation Defaults")
         self.migrateButton.set_tooltip_text(
             "This will attempt to migrate your system to its installation defaults."
             " Only do this if the \'Update All Installed Packages\' step"
@@ -273,18 +273,23 @@ class UpgradeSystem(object):
         scrolled_window.add_with_viewport(topHBox)
         self.window.add(scrolled_window)
 
-    def update_done(self, header, text):
+    def update_done(self, text):
         """
-        Present a dialog box with a header, a message text 
-        and an Exit button. The Exit button exits the program.
+        Present a dialog box with a message text  and an Exit button. 
+        The Exit button exits the program.
         """
-        dialog = gtk.Dialog(title=header, 
+        dialog = gtk.Dialog(title="Foresight Upgrade Helper", 
                             parent=self.window, flags=gtk.DIALOG_MODAL)
+        dialog.set_resizable(False)
         msg = self.create_text_frame(self.create_text_label(text))
+        hbox = gtk.HBox()
+        hbox.pack_start(msg, True, False, padding=20)
+        dialog.vbox.pack_start(hbox, True, False, padding=20)
         exit_button = gtk.Button(label="Exit", stock=None)
         exit_button.connect("clicked", self.delete_event, None)
-        dialog.vbox.pack_start(msg, True, True, 10)
-        dialog.action_area.pack_end(exit_button, True, True, 10)
+        aa_hbox = gtk.HBox()
+        aa_hbox.pack_end(exit_button, True, True, padding=20)
+        dialog.action_area.pack_end(aa_hbox, True, True, padding=20)
         dialog.show_all()
 
     def button_clicked(self, button):
@@ -321,13 +326,13 @@ class UpgradeSystem(object):
                 self.updateConaryButton.set_sensitive(False)
                 self.updateallButton.set_sensitive(False)
                 self.migrateButton.set_sensitive(False)
-                header = "Update Complete"
-                text = """
+                text = """<b>Update Complete</b>
+
 Successfully updated all installed packages.  
                
 Press <i>Exit</i> to close the Foresight upgrade helper program.
 """
-                self.update_done(header, text)
+                self.update_done(text)
         else:
             #TODO: What do we do if migrating fails? Try again?
             self.updateConaryButton.set_sensitive(False)
@@ -340,13 +345,13 @@ Press <i>Exit</i> to close the Foresight upgrade helper program.
             else:
                 # At least the migrate worked
                 self.migrateButton.set_sensitive(False)
-                header = "Migration Complete"
-                text = """
+                text = """<b>Migration Complete</b>
+
 Successfully migrated to installation defaults.  
                
 Press <i>Exit</i> to close the Foresight upgrade helper program.
 """
-                self.update_done(header, text)
+                self.update_done(text)
 
     def run_conary(self, command):
         #TODO: If xterm doesn't exist, try gnome-terminal?
