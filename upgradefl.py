@@ -59,7 +59,7 @@ MIGRATE_TEXT = """If the update process in step 2a fails, you will need to migra
 This will remove any extra packages that you have previously installed, and you will have to add them back after this step.
 
 <b>NOTE:</b>
-The migration process should not tamper with any documents, media files or other saved data in your home folder.  But if you are the paranoid sort, now would be a good time to ensure that you have good backups of your important data/documents/media files."""
+The migration process should not tamper with any documents, media files or other saved data in your home folder.  But if you are the paranoid sort, now would be a good time to ensure that you have good backups of your important data / documents / media files."""
 
 (CONARY_STEP, UPDATEALL_STEP, MIGRATE_STEP) = range(3)
 
@@ -183,7 +183,9 @@ class UpgradeSystem(object):
         self.window.set_title("Foresight Upgrade Helper")
         self.window.set_icon_name(gtk.STOCK_DIALOG_ERROR)
         #self.window.set_border_width(0)
-        self.window.set_size_request(450, 536) # 600 - 2*32
+        #self.window.set_size_request(450, 536) # 600 - 2*32
+        #self.window.set_geometry_hints(min_height=536) # 600 - 2*32
+        self.window.set_default_size(-1, 536) # 600 -2*32
         self.window.set_resizable(True)
         self.window.connect("delete_event", self.delete_event)
         self.create_widgets()
