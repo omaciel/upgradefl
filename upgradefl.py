@@ -59,7 +59,7 @@ MIGRATE_TEXT = """If the update process in step 2a fails, you will need to migra
 This will remove any extra packages that you have previously installed, and you will have to add them back after this step.
 
 <b>NOTE:</b>
-The migration process should not tamper with any documents, media files or other saved data in your home folder.  But if you are the paranoid sort, now would be a good time to ensure that you have good backups of your important data/documents/media files."""
+The migration process should not tamper with any documents, media files or other saved data in your home folder.  But if you are the paranoid sort, now would be a good time to ensure that you have good backups of your important data / documents / media files."""
 
 (CONARY_STEP, UPDATEALL_STEP, MIGRATE_STEP) = range(3)
 
@@ -101,7 +101,7 @@ os.chmod(UPDATE_CONARY, 0755)
 fd, CONARY_UPDATEALL = tempfile.mkstemp(prefix='conary_updateall-')
 f = os.fdopen(fd, 'w')
 f.write('''#!/bin/sh
-echo "Updating packages on the system...(ppid=$PPID)"
+echo "Updating all the installed packages on your system...(ppid=$PPID)"
 #echo "conary updateall" && sleep 3 && rv=1
 conary updateall --verbose --no-interactive
 rv=$?
@@ -183,7 +183,9 @@ class UpgradeSystem(object):
         self.window.set_title("Foresight Upgrade Helper")
         self.window.set_icon_name(gtk.STOCK_DIALOG_ERROR)
         #self.window.set_border_width(0)
-        self.window.set_size_request(450, 536) # 600 - 2*32
+        #self.window.set_size_request(450, 536) # 600 - 2*32
+        #self.window.set_geometry_hints(min_height=536) # 600 - 2*32
+        self.window.set_default_size(-1, 536) # 600 -2*32
         self.window.set_resizable(True)
         self.window.connect("delete_event", self.delete_event)
         self.create_widgets()
@@ -225,7 +227,7 @@ class UpgradeSystem(object):
         self.updateallButton.set_sensitive(False)
         self.updateallButton.idx = UPDATEALL_STEP
 
-        self.migrateButton = gtk.Button("Migrate To Default Installation")
+        self.migrateButton = gtk.Button("Migrate To Installation Defaults")
         self.migrateButton.set_tooltip_text(
             "This will attempt to migrate your system to its installation defaults."
             " Only do this if the \'Update All Installed Packages\' step"
@@ -273,18 +275,23 @@ class UpgradeSystem(object):
         scrolled_window.add_with_viewport(topHBox)
         self.window.add(scrolled_window)
 
-    def update_done(self, header, text):
+    def update_done(self, text):
         """
-        Present a dialog box with a header, a message text 
-        and an Exit button. The Exit button exits the program.
+        Present a dialog box with a message text  and an Exit button. 
+        The Exit button exits the program.
         """
-        dialog = gtk.Dialog(title=header, 
+        dialog = gtk.Dialog(title="Foresight Upgrade Helper", 
                             parent=self.window, flags=gtk.DIALOG_MODAL)
+        dialog.set_resizable(False)
         msg = self.create_text_frame(self.create_text_label(text))
+        hbox = gtk.HBox()
+        hbox.pack_start(msg, True, False, padding=20)
+        dialog.vbox.pack_start(hbox, True, False, padding=20)
         exit_button = gtk.Button(label="Exit", stock=None)
         exit_button.connect("clicked", self.delete_event, None)
-        dialog.vbox.pack_start(msg, True, True, 10)
-        dialog.action_area.pack_end(exit_button, True, True, 10)
+        aa_hbox = gtk.HBox()
+        aa_hbox.pack_end(exit_button, True, True, padding=20)
+        dialog.action_area.pack_end(aa_hbox, True, True, padding=20)
         dialog.show_all()
 
     def button_clicked(self, button):
@@ -321,13 +328,13 @@ class UpgradeSystem(object):
                 self.updateConaryButton.set_sensitive(False)
                 self.updateallButton.set_sensitive(False)
                 self.migrateButton.set_sensitive(False)
-                header = "Update Complete"
-                text = """
+                text = """<b>Update Complete</b>
+
 Successfully updated all installed packages.  
                
-Press <i>Exit</i> to close the Foresight upgrade helper program.
+Press <i>Exit</i> to close the Foresight Upgrade Helper.
 """
-                self.update_done(header, text)
+                self.update_done(text)
         else:
             #TODO: What do we do if migrating fails? Try again?
             self.updateConaryButton.set_sensitive(False)
@@ -340,17 +347,17 @@ Press <i>Exit</i> to close the Foresight upgrade helper program.
             else:
                 # At least the migrate worked
                 self.migrateButton.set_sensitive(False)
-                header = "Migration Complete"
-                text = """
+                text = """<b>Migration Complete</b>
+
 Successfully migrated to installation defaults.  
                
-Press <i>Exit</i> to close the Foresight upgrade helper program.
+Press <i>Exit</i> to close the Foresight Upgrade Helper.
 """
-                self.update_done(header, text)
+                self.update_done(text)
 
     def run_conary(self, command):
         #TODO: If xterm doesn't exist, try gnome-terminal?
-        ppid=None
+        ppid = None
         conary_exit_status = None
         try:
             cmd_line = ["/usr/bin/xterm", "-fg", "grey", "-bg", "black",
@@ -363,10 +370,14 @@ Press <i>Exit</i> to close the Foresight upgrade helper program.
             with open(CONARY_EXIT_STATUS, 'r') as f:
                 f.flush()
                 ppid = int(f.readline().strip())
-                conary_exit_status = int(f.readline().strip())
-                assert (ppid == p.pid)
-                print "** Conary exit status file is in sync with current Conary process(%i)." \
-                    % p.pid
+                assert (ppid == p.pid) # This could potentially be optimized out
+                if (ppid == p.pid):
+                    print "** Conary exit status file is in sync with current Conary process(%i)." \
+                        % p.pid
+                    # This will only be read if we are in sync (None otherwise)
+                    conary_exit_status = int(f.readline().strip())
+                else:
+                    raise AssertionError
         except OSError as (errno, strerror):
             print "Executing \'%s\'" % " ".join(cmd_line)
             print "failed with the following error:"
@@ -374,15 +385,20 @@ Press <i>Exit</i> to close the Foresight upgrade helper program.
             conary_exit_status = errno
         except IOError as (errno, strerror):
             print "!! I/O error({0}): {1}".format(errno, strerror)
+            conary_exit_status = errno
         except ValueError:
+            # One of the values will be None
             print "!! Couldn't parse Conary exit status file (ppid=%s, conary_exit_status=%s)" \
                 % (ppid, conary_exit_status)
         except AssertionError:
+            # files were read, but ppid was out of sync
             print "!! Conary exit status file is not in sync with current Conary process."
-            print "   (current ppid=%i, ppid from file=%i, conary_exit_status from file=%s)" % (p.pid, ppid, conary_exit_status)
+            print "   (current ppid=%i, ppid from file=%i, conary_exit_status from file=%s)" \
+                % (p.pid, ppid, conary_exit_status)
             # Might be left at 0 if the prior conary operation completed succesfully.
             conary_exit_status = -1
         except Exception, e:
+            print "!! An unexpected exception occurred while running Conary."
             print e
         else:
             print "** Process %i returned with status %i" \
